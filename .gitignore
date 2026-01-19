@@ -1,0 +1,26 @@
+# 1. SECURITY (Crucial)
+.env
+.env.local
+
+# 2. Python System Files
+__pycache__/
+*.py[cod]
+
+# 3. Virtual Environment (Render builds its own)
+.venv/
+venv/
+env/
+
+# 4. Database & Generated Data
+# We ignore these because Docker will rebuild them from scratch
+chromadb/
+preprocessed_docs/
+!chromadb/.gitkeep
+!preprocessed_docs/.gitkeep
+
+# 5. Mac System Files (Annoying junk files)
+.DS_Store
+
+# 6. Testing & Logs
+test_rag.py
+*.log
