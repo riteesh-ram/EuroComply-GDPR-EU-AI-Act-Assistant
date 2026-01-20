@@ -1,7 +1,8 @@
 import os
 import chromadb
+import streamlit as st  # Import Streamlit for caching
 
-# 1. Disable Telemetry to stop the "capture() takes 1 argument" errors
+# 1. Disable Telemetry
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -10,19 +11,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- 🚀 GLOBAL SINGLETON: Load AI Model Once! ---
-# This prevents the app from reloading the 300MB model on every request.
-_SHARED_EMBEDDING_MODEL = None
-
-def get_shared_embedding_model():
-    """
-    Returns the loaded embedding model. If not loaded, loads it first.
-    """
-    global _SHARED_EMBEDDING_MODEL
-    if _SHARED_EMBEDDING_MODEL is None:
-        print("🧠 DEBUG: Loading Embedding Model into Memory (One-time setup)...")
-        _SHARED_EMBEDDING_MODEL = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
-    return _SHARED_EMBEDDING_MODEL
+# --- 🚀 STREAMLIT CACHE: The Ultimate Memory Saver ---
+# This tells Streamlit: "Load this ONCE and keep it in memory forever."
+# It prevents the 300MB model from reloading on every page refresh.
+@st.cache_resource
+def load_embedding_model():
+    print("🧠 DEBUG: Loading Embedding Model (This should happen ONLY ONCE)...")
+    return HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
 class ChromadDBConfig:
     
@@ -30,22 +25,18 @@ class ChromadDBConfig:
         print(f"🔍 DEBUG: Initializing Config for: '{collection_name}'")
         self.collection_name = collection_name
         
-        # USE SINGLETON: Do not create a new instance; use the shared one.
-        self.embedding_function = get_shared_embedding_model()
+        # Load model from the secure cache
+        self.embedding_function = load_embedding_model()
         
         self.vectorstore = None 
         
     async def get_vectorstore(self):
-        """
-        Lazy loader with logs.
-        """
         if self.vectorstore is None:
             try:
                 base_dir = os.path.dirname(os.path.abspath(__file__))
                 persist_dir = os.path.join(base_dir, "..", "chromadb")
                 persist_dir = os.path.normpath(persist_dir)
                 
-                # Initialize Chroma with the SHARED embedding function
                 self.vectorstore = Chroma(
                     collection_name=self.collection_name, 
                     embedding_function=self.embedding_function, 
@@ -71,6 +62,5 @@ class ChromadDBConfig:
         vs = await self.get_vectorstore()
         if vs is None:
             raise ValueError("Critical Error: Could not initialize Vectorstore.")
-        
         await vs.aadd_documents(documents)
         return True
