@@ -1,6 +1,5 @@
 import os
 import chromadb
-import streamlit as st  # Import Streamlit for caching
 
 # 1. Disable Telemetry
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -11,13 +10,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- 🚀 STREAMLIT CACHE: The Ultimate Memory Saver ---
-# This tells Streamlit: "Load this ONCE and keep it in memory forever."
-# It prevents the 300MB model from reloading on every page refresh.
-@st.cache_resource
-def load_embedding_model():
-    print("🧠 DEBUG: Loading Embedding Model (This should happen ONLY ONCE)...")
-    return HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
+# --- 🚀 GLOBAL SINGLETON (Build-Safe) ---
+# We use a simple global variable because this file is used by
+# 'run_pipeline.py' during the Docker build, where Streamlit is not running.
+_SHARED_EMBEDDING_MODEL = None
+
+def get_shared_embedding_model():
+    global _SHARED_EMBEDDING_MODEL
+    if _SHARED_EMBEDDING_MODEL is None:
+        print("🧠 DEBUG: Loading Embedding Model (Global Singleton)...")
+        _SHARED_EMBEDDING_MODEL = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
+    return _SHARED_EMBEDDING_MODEL
 
 class ChromadDBConfig:
     
@@ -25,8 +28,8 @@ class ChromadDBConfig:
         print(f"🔍 DEBUG: Initializing Config for: '{collection_name}'")
         self.collection_name = collection_name
         
-        # Load model from the secure cache
-        self.embedding_function = load_embedding_model()
+        # Use the global singleton
+        self.embedding_function = get_shared_embedding_model()
         
         self.vectorstore = None 
         

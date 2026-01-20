@@ -27,4 +27,4 @@ EXPOSE 8501
 
 # 8. Start the application (Updated for Standalone Mode)
 # We set the address to 0.0.0.0 so external users can connect
-CMD ["streamlit", "run", "streamlit.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]
