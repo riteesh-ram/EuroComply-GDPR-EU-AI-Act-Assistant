@@ -16,7 +16,7 @@ huggingface-hub==0.23.2
 
 # --- AI & LangChain (The "Golden" Compatible Set) ---
 # We stick to the 0.1.x series because it is the most stable for your code
-cohere==5.5.8
+cohere==5.3.3
 langchain==0.1.20
 langchain-community==0.0.38
 langchain-core==0.1.52
