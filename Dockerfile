@@ -19,15 +19,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 6. Build the Knowledge Base (ChromaDB)
-# We run this during the build so the database is ready inside the container
+# Note: This runs during build. Ensure 'config/chroma_client.py' uses the new Singleton fix!
 RUN python run_pipeline.py
 
 # 7. Expose the port used by Streamlit
 EXPOSE 8501
 
-# 8. Setup the startup script
-COPY run_services.sh .
-RUN chmod +x run_services.sh
-
-# 9. Start the application
-CMD ["./run_services.sh"]
+# 8. Start the application (Updated for Standalone Mode)
+# We set the address to 0.0.0.0 so external users can connect
+CMD ["streamlit", "run", "streamlit.py", "--server.port=8501", "--server.address=0.0.0.0"]
