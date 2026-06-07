@@ -12,10 +12,8 @@ venv/
 env/
 
 # 4. Database & Generated Data
-# We ignore these because Docker will rebuild them from scratch
-chromadb/
+# preprocessed_docs is regenerated during pipeline; chromadb is pre-built and committed via LFS
 preprocessed_docs/
-!chromadb/.gitkeep
 !preprocessed_docs/.gitkeep
 
 # 5. Mac System Files (Annoying junk files)

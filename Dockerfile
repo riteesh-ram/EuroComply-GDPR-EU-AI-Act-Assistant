@@ -15,14 +15,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copy the application code
+# 5. Copy the application code (includes pre-built ChromaDB committed via Git LFS)
 COPY . .
 
-# 6. Build the Knowledge Base (ChromaDB)
-# Note: This runs during build. Ensure 'config/chroma_client.py' uses the new Singleton fix!
-RUN python run_pipeline.py
-
-# 7. Expose the port used by Streamlit (HF Spaces requires 7860)
+# 6. Expose the port used by Streamlit (HF Spaces requires 7860)
 EXPOSE 7860
 
 # 8. Start the application (Updated for Standalone Mode)
