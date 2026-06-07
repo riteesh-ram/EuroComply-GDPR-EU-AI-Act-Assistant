@@ -12,7 +12,8 @@ venv/
 env/
 
 # 4. Database & Generated Data
-# preprocessed_docs is regenerated during pipeline; chromadb is pre-built and committed via LFS
+# Both are regenerated during Docker build from JSONL/CSV sources
+chromadb/
 preprocessed_docs/
 !preprocessed_docs/.gitkeep
 
