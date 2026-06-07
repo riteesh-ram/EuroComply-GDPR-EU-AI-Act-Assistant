@@ -220,7 +220,9 @@ class BasicRag:
 
         policy = await Evaluations.get_metadata(query=query)
 
-        if policy == "GDPR" or policy == "EU AI Act":
+        # Metadata filter only works on custom collection (has policy field); basic collection uses simple PDF chunks with no policy metadata
+        use_filter = (policy == "GDPR" or policy == "EU AI Act") and "custom" in collection_name
+        if use_filter:
             retriever = await chromadb.get_retriever_with_metadata_filter(policy=policy)
         else:
             retriever = await chromadb.get_retriever()
@@ -285,16 +287,18 @@ class HybridRag:
             
             policy = await Evaluations.get_metadata(query=query)
 
-            if policy == "GDPR" or policy == "EU AI Act":
+            # Metadata filter only works on custom collection (has policy field); basic collection uses simple PDF chunks with no policy metadata
+            use_filter = (policy == "GDPR" or policy == "EU AI Act") and "custom" in collection_name
+            if use_filter:
                 # getting normal retriever for chromadb with metadata policy name filtering
                 semantic_retriever = await chromadb.get_retriever_with_metadata_filter(k=10, policy=policy)
-                
+
                 # getting a chromadb retriever for bm25 with metadata policy name filtering keeping k=10 for chroma and then bm25 will be applied on the docs to fetch top 5 best match docs
                 chroma_retriever_BM25 = await chromadb.get_retriever_with_metadata_filter(k=20, policy=policy)
             else:
                 # getting normal retriever for chromadb
                 semantic_retriever = await chromadb.get_retriever(k=10)
-                
+
                 # getting a chromadb retriever for bm25 keeping k=10 for chroma and then bm25 will be applied on the docs to fetch top 5 best match docs
                 chroma_retriever_BM25 = await chromadb.get_retriever(k=20)
             
