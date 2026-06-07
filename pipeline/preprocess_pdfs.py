@@ -108,8 +108,13 @@ class CustomPreprocessingGDPR:
                 "type": parsed["type"]
             }
 
+            if parsed["type"] == "article":
+                prefix = f"GDPR Article {parsed['number']}: {parsed['title']}\n"
+            else:
+                prefix = f"GDPR Recital {parsed['number']}\n"
+
             full_text = await CustomPreprocessingGDPR.clean_text(
-                f"{entry['output-text']} (number: {parsed['number']}, title: {parsed['title']}, chapter: {chapter_number})"
+                f"{prefix}{entry['output-text']}"
             )
 
             chunks.append(Document(page_content=full_text, metadata=metadata))
@@ -213,6 +218,16 @@ class CustomPreprocessingEUAI:
                         continue
 
                 if first_metadata:
+                    doc_type = first_metadata.get("type", "")
+                    num = first_metadata.get("number", "")
+                    title = first_metadata.get("title", "")
+                    if doc_type == "article":
+                        prefix = f"EU AI Act Article {num}: {title}\n" if title else f"EU AI Act Article {num}\n"
+                    elif doc_type == "recital":
+                        prefix = f"EU AI Act Recital {num}\n"
+                    else:
+                        prefix = f"EU AI Act {doc_type.title()} {num}\n" if num else ""
+                    page_content = prefix + page_content
                     doc = Document(page_content=page_content, metadata=first_metadata)
                     chunks.append(doc)
 

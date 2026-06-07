@@ -16,8 +16,8 @@ VALID_MODELS = [
     "mistral-saba-24b",
     "qwen-qwq-32b"
 ]
-VALID_RAG_TYPES = ["Basic", "Hybrid", "Advance"]
-VALID_PREPROCESSING = ["Basic", "Custom"]
+VALID_RAG_TYPES = ["Hybrid", "Advance", "Basic"]
+VALID_PREPROCESSING = ["Custom", "Basic"]
 VALID_COHERE_OPTIONS_HYBRID = ["Allow Long Context Reordering", "No Reordering"]
 VALID_COHERE_OPTIONS_ADVANCE = ["Allow Re-Ranking by Default"]
 
