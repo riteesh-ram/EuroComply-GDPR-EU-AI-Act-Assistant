@@ -34,7 +34,13 @@ async def get_ai_response(user_query, model, r_type):
         )
         return response
     except Exception as e:
-        return f"❌ Backend Error: {str(e)}"
+        err = str(e)
+        if "429" in err or "rate_limit_exceeded" in err or "Rate limit" in err:
+            import re
+            wait = re.search(r"try again in (.+?)\.", err)
+            wait_msg = f" Please try again in {wait.group(1)}." if wait else " Please try again shortly."
+            return f"⏳ The AI model is temporarily rate-limited (daily free-tier limit reached).{wait_msg} You can switch to **llama-3.1-8b-instant** in the sidebar to continue."
+        return f"❌ Something went wrong: {err}"
 
 if query:
     st.session_state.messages.append({"role": "user", "content": query})

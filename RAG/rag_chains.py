@@ -148,11 +148,11 @@ class Prompts:
 
 class Evaluations:
 
-    async def evaluate(context, answer, question):
+    async def evaluate(context, answer, question, model_name: str = "llama-3.1-8b-instant"):
         relevance_prompt = await Prompts.get_relevance_prompt()
         faithfulness_prompt = await Prompts.get_faithfulness_prompt()
 
-        groq = Groq(model="llama-3.3-70b-versatile")
+        groq = Groq(model=model_name)
         llm = await groq.get_llm()
 
         relevance_chain = (
@@ -249,7 +249,7 @@ class HybridRag:
 
         response = await hybrid_rag_chain.ainvoke(query)
         context = captured_context.get("context", [])
-        return await Evaluations.evaluate(context=context, answer=response, question=query)
+        return await Evaluations.evaluate(context=context, answer=response, question=query, model_name=model_name)
 
 
 class AdvanceRag:
@@ -314,4 +314,4 @@ class AdvanceRag:
         )
 
         response = await advance_rag_chain.ainvoke({"context": reranked_docs_context, "question": query})
-        return await Evaluations.evaluate(context=reranked_docs, answer=response, question=query)
+        return await Evaluations.evaluate(context=reranked_docs, answer=response, question=query, model_name=model_name)
