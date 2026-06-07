@@ -11,6 +11,7 @@ from langchain.retrievers import ContextualCompressionRetriever
 from langchain_cohere import CohereRerank
 import json
 import re
+import asyncio
 
 captured_context = {}
 
@@ -299,9 +300,12 @@ class HybridRag:
             
             # this gets docs with semantic retrieval from chroma for bm25
             semantic_docs_for_BM25 = await chromadb.retrieval_for_BM25(retriever=chroma_retriever_BM25, query=query)
-            
+
+            if not semantic_docs_for_BM25:
+                return {"response": "Sorry, I cannot answer that at the moment.", "relevance score": "N/A", "faithfulness score": "N/A"}
+
             # bm25 is intialized and applied
-            bm25_retriever = BM25Retriever.from_documents(documents=semantic_docs_for_BM25, kwargs={"k": 10})
+            bm25_retriever = BM25Retriever.from_documents(documents=semantic_docs_for_BM25, k=10)
 
             # initializing the ensemble retriever
             ensemble_retriever = EnsembleRetriever(
@@ -429,7 +433,7 @@ class AdvanceRag:
             | StrOutputParser()
         )
 
-        response = await self_query_chain.ainvoke({"question": query})
+        response = await self_query_chain.ainvoke(query)
 
         # IMPROVEMENT 1: Strip markdown and extra text
         cleaned = re.sub(r"^```(?:json)?|```$", "", response.strip(), flags=re.MULTILINE).strip()
@@ -459,11 +463,11 @@ class AdvanceRag:
         # putting all the sub-queries in a list
         sub_queries = [v for k, v in self_queries_json.items() if "query" in k.lower()]
 
-        # fetching top 5 documents from retriever per sub-query
-        all_docs = []
-        for sub_q in sub_queries:
-            top_docs = await chromadb.retrieval_for_advance_rag(retriever=retriever, query=query)
-            all_docs.extend(top_docs)
+        # fetching documents for all sub-queries in parallel
+        results = await asyncio.gather(
+            *[chromadb.retrieval_for_advance_rag(retriever=retriever, query=sub_q) for sub_q in sub_queries]
+        )
+        all_docs = [doc for docs in results for doc in docs]
 
         # reranking all the sub-queries generated
         reranker = CohereRerank(top_n=5, model="rerank-english-v3.0")

@@ -11,4 +11,4 @@ sleep 15
 # 3. Start the Frontend (Streamlit)
 # We strictly bind to port 8501 and address 0.0.0.0 for Render
 echo "Starting Streamlit..."
-streamlit run streamlit.py --server.port 8501 --server.address 0.0.0.0
+streamlit run main_ui.py --server.port 8501 --server.address 0.0.0.0

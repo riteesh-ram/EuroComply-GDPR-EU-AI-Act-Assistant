@@ -67,3 +67,9 @@ class ChromadDBConfig:
             raise ValueError("Critical Error: Could not initialize Vectorstore.")
         await vs.aadd_documents(documents)
         return True
+
+    async def retrieval_for_BM25(self, retriever, query):
+        return await retriever.ainvoke(query)
+
+    async def retrieval_for_advance_rag(self, retriever, query):
+        return await self.retrieval_for_BM25(retriever, query)

@@ -22,9 +22,9 @@ COPY . .
 # Note: This runs during build. Ensure 'config/chroma_client.py' uses the new Singleton fix!
 RUN python run_pipeline.py
 
-# 7. Expose the port used by Streamlit
-EXPOSE 8501
+# 7. Expose the port used by Streamlit (HF Spaces requires 7860)
+EXPOSE 7860
 
 # 8. Start the application (Updated for Standalone Mode)
 # We set the address to 0.0.0.0 so external users can connect
-CMD ["streamlit", "run", "main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "main_ui.py", "--server.port=7860", "--server.address=0.0.0.0"]
