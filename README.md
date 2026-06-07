@@ -8,73 +8,150 @@ app_port: 7860
 pinned: false
 ---
 
-## EuroComply – GDPR + EU AI Act Compliance Copilot
+# EuroComply — GDPR & EU AI Act Compliance Assistant
 
-Purpose-built Retrieval Augmented Generation (RAG) system that lets compliance, security, and legal teams ask natural-language questions across GDPR and EU AI Act source material. Optimized for resource-constrained deployments (Render Free Tier) while using state-of-the-art inference via Groq and reranking via Cohere.
+A production-grade Retrieval Augmented Generation (RAG) system for querying GDPR and EU AI Act source material in natural language. Built for compliance, legal, and security teams who need fast, grounded answers from regulatory documents.
+
+Live on Hugging Face Spaces · Powered by Groq + Cohere + ChromaDB
 
 ---
 
-### System Architecture (Data → Answer)
-- **Data ingestion**: PDFs and JSONL/CSV ingested via [pipeline/preprocess_pdfs.py](pipeline/preprocess_pdfs.py). Cleans text, normalizes whitespace, tags chapters/articles/recitals, and writes chunk JSONL for reproducibility.
-- **Embedding**: SentenceTransformers `all-MiniLM-L6-v2` (≈80 MB, 384-dim) loaded as a global singleton in [config/chroma_client.py](config/chroma_client.py) to avoid duplicate models per process. Stored in Chroma with persisted collections for basic and custom pipelines.
-- **Retrieval**: Fast semantic retrievers from Chroma; metadata filters isolate GDPR vs EU AI Act. Hybrid mode blends semantic + BM25 (re-ranking optional) while respecting policy filters.
-- **Reranking**: Cohere `rerank-english-v3.0` optionally reorders long contexts or hybrid blends to surface top-5 passages with better semantic coherence.
-- **Generation**: Groq-hosted LLMs (e.g., Llama 3.3 70B, Llama 3.1 8B, Gemma2 9B) answer strictly from retrieved context. Optional summary pre-step reduces context size before generation.
-- **Evaluation**: Lightweight self-checks score relevance and faithfulness per response, keeping outputs grounded to cited context.
+## How It Works
 
-### Deployment Footprint
-- **Single-process Streamlit front-end** ([main_ui.py](main_ui.py)) can call the service layer directly, bypassing FastAPI to cut RAM and inter-process overhead on Render Free Tier.
-- **API-first option**: [app.py](app.py) + [API/routes/appRoutes.py](API/routes/appRoutes.py) expose `/complaince/bot/ask` for programmatic access. Streamlit can be layered later via [run_services.sh](run_services.sh) when resources permit.
-- **Container build**: [Dockerfile](Dockerfile) installs deps, builds embeddings via [run_pipeline.py](run_pipeline.py) during image build so the vector store ships pre-populated.
+A user question flows through four stages before an answer is returned:
 
-### Resume-Ready Highlights
-- **Latency**: Groq-backed generation keeps p95 end-to-end responses in the low-seconds on Free-tier CPUs (semantic retrieval + Cohere rerank + Llama 3.3 70B).
-- **Memory efficiency**: Singleton embedding model avoids duplicate 80 MB loads; running Streamlit-direct mode (no extra FastAPI worker) reduced container RSS by ~30–40% vs dual-process setups, preventing OOM on 512 MB plans.
-- **Model stack**: Embeddings: `all-MiniLM-L6-v2`; Reranker: Cohere v3; Generators: Llama 3.3 70B / Llama 3.1 8B / Gemma2 9B / Mistral 24B / Qwen 32B via Groq.
+```
+User Question
+     │
+     ▼
+1. METADATA DETECTION
+   LLM identifies whether the query is about GDPR, EU AI Act, or neither.
+   Used to apply policy-specific filters on retrieval.
+     │
+     ▼
+2. RETRIEVAL
+   Hybrid mode:  Semantic search (ChromaDB) + BM25 keyword search → Ensemble → Cohere Rerank
+   Advance mode: LLM generates 5 sub-queries → parallel retrieval → Cohere Rerank
+     │
+     ▼
+3. GENERATION
+   Top-ranked context passages are fed to a Groq-hosted LLM.
+   The model answers strictly from retrieved context.
+     │
+     ▼
+4. EVALUATION
+   Two lightweight LLM checks score the response:
+   - Relevance Score (1–10): Does the answer address the question?
+   - Faithfulness Score (1–10): Is the answer grounded in the retrieved context?
+```
 
-### Key Engineering Decisions
-- **Singleton embeddings**: Global cached HuggingFace embeddings prevent multiple instantiations across build/runtime, critical for small-memory instances.
-- **Direct-call UI path**: Streamlit calls the async service layer directly to avoid FastAPI overhead when memory is tight; API mode stays available for integrations.
-- **Pre-baked vector store**: Pipeline runs at build time so containers start with ready-to-serve Chroma collections, avoiding cold-start ingest on Render.
-- **Metadata-aware retrieval**: Filters align queries to GDPR vs EU AI Act; hybrid semantic+BM25 boosts recall when terminology differs.
-- **Self-query + rerank (advance mode)**: LLM-generated sub-queries broaden recall; Cohere reranks to prioritize the best passages.
+---
 
-### Quickstart (Local)
-1) Install deps: `pip install -r requirements.txt`
-2) Set env vars in `.env`: `GROQ_API_KEY`, `COHERE_API_KEY` (optional for rerank), `ANONYMIZED_TELEMETRY=False` already enforced for Chroma.
-3) Build vectors (optional if using prebuilt `chromadb/`): `python run_pipeline.py`
-4) Run Streamlit direct mode: `streamlit run main_ui.py`
-5) API mode (optional): `uvicorn app:app --host 0.0.0.0 --port 8000`
+## Architecture
 
-### Usage
-- Open Streamlit, select model, RAG type (Basic, Hybrid, Advance), preprocessing set (Basic vs Custom), optional summarizer and Cohere rerank.
-- Ask questions like “What are GDPR Article 30 record-keeping duties?” or “List EU AI Act transparency obligations.”
+### Data Pipeline (Build Time)
 
-### Project Structure
-- Core app and UI: [main_ui.py](main_ui.py), [app.py](app.py)
-- RAG logic: [RAG/rag_chains.py](RAG/rag_chains.py)
-- Vector store + clients: [config/chroma_client.py](config/chroma_client.py), [config/groq_client.py](config/groq_client.py)
-- API layer: [API/controller/appController.py](API/controller/appController.py), [API/service/appService.py](API/service/appService.py), [API/routes/appRoutes.py](API/routes/appRoutes.py)
-- Ingestion pipeline: [pipeline/preprocess_pdfs.py](pipeline/preprocess_pdfs.py), [run_pipeline.py](run_pipeline.py)
+Source documents are preprocessed once during Docker image build and stored in ChromaDB.
 
-### Notes and Next Steps
-- If deploying on multi-process servers, keep the embedding singleton global (not per-request) to preserve memory wins.
-- Consider adding lightweight tracing/metrics to validate latency targets on your cloud plan.
+| Source | Format | Preprocessing |
+|---|---|---|
+| GDPR | JSONL (Kaggle corpus) | Parsed per article/recital, prefixed with article number + title, stored with chapter/policy metadata |
+| EU AI Act | CSV | Parsed per article/recital/annex, prefixed with article number + title, stored with chapter/policy metadata |
 
-## File-by-File Functionality
-- [app.py](app.py): FastAPI entrypoint exposing a health root route and wiring the compliance router for `/complaince/bot/ask`.
-- [main_ui.py](main_ui.py): Streamlit “direct mode” chat UI; collects model/RAG settings, calls the async service layer without FastAPI, and renders conversation history.
-- [API/routes/appRoutes.py](API/routes/appRoutes.py): Declares the `/complaince/bot/ask` POST route and forwards requests to the controller.
-- [API/controller/appController.py](API/controller/appController.py): Validates incoming payloads, invokes the service, formats scores plus answer, and returns a Markdown response or errors.
-- [API/service/appService.py](API/service/appService.py): Chooses collection name (basic/custom) and dispatches to `BasicRag`, `HybridRag`, or `AdvanceRag` executors.
-- [RAG/rag_chains.py](RAG/rag_chains.py): Core RAG logic—prompt builders, evaluation helpers, and three pipelines: `BasicRag` (semantic only), `HybridRag` (semantic + BM25 ensemble with optional Cohere rerank and summarization), and `AdvanceRag` (self-query expansion plus Cohere rerank). Also houses relevance/faithfulness scorers and metadata detection.
-- [config/chroma_client.py](config/chroma_client.py): Sets up a global singleton HuggingFace embedding model and Chroma vector store connector; exposes retrievers and async document ingestion.
-- [config/groq_client.py](config/groq_client.py): Thin wrapper returning Groq-hosted ChatGroq LLM instances for a chosen model.
-- [pipeline/preprocess_pdfs.py](pipeline/preprocess_pdfs.py): Preprocessing utilities. Basic PDF chunker (cleaning + recursive splitter) and custom pipelines for GDPR JSONL and EU AI Act CSV, enriching chunks with policy/chapter/article metadata and writing JSONL outputs.
-- [run_pipeline.py](run_pipeline.py): Orchestrates preprocessing runs (EU AI Act CSV → GDPR JSONL → basic PDFs), builds Chroma collections, and pushes chunks into the configured collections.
-- [run_services.sh](run_services.sh): Convenience script to launch FastAPI then Streamlit after a short delay; binds to 0.0.0.0 for container use.
-- [Dockerfile](Dockerfile): Container build that installs dependencies, runs the preprocessing pipeline at build time to bake the Chroma store, and launches Streamlit on port 7860.
-- [requirements.txt](requirements.txt): Python dependency lock for FastAPI/Streamlit/RAG stack and supporting libraries.
-- [pipeline/pdfs/gdpr_articles_kaggle.jsonl](pipeline/pdfs/gdpr_articles_kaggle.jsonl) and [pipeline/pdfs/eu_ai_act_2024_from_pdf.csv](pipeline/pdfs/eu_ai_act_2024_from_pdf.csv): Source corpora used by the custom preprocessing steps.
-- [pipeline/preprocessed_docs/](pipeline/preprocessed_docs): Generated JSONL chunk outputs for GDPR and EU AI Act after preprocessing (committed for reproducibility).
-- [chromadb/](chromadb): Persisted Chroma vector store directories (collections and SQLite) populated during pipeline runs.
+Each chunk is labelled (e.g. `"GDPR Article 5: Principles relating to processing of personal data"`) before embedding, so keyword and semantic retrieval both find article-specific content accurately.
+
+### Vector Store
+
+- **Embedding model**: `all-MiniLM-L6-v2` (SentenceTransformers, 384-dim) — loaded as a singleton to avoid duplicate model loads
+- **Vector store**: ChromaDB (persisted, single collection for custom-preprocessed data)
+- **Metadata filters**: Each chunk carries `policy`, `type`, `number`, `title`, `chapter_number` — queries filtered by policy at retrieval time
+
+### RAG Modes
+
+**Hybrid RAG** (recommended for specific article queries)
+- Semantic retrieval from ChromaDB (top 10) + BM25 keyword retrieval over the same candidate set
+- Ensemble weighted 70% semantic / 30% BM25
+- Cohere `rerank-english-v3.0` reranks the ensemble to top 5 passages
+- Best for: "What does GDPR Article 5 say?", exact article lookups
+
+**Advance RAG** (recommended for complex, multi-part questions)
+- LLM generates 5 distinct sub-queries from the original question
+- All sub-queries retrieved in parallel from ChromaDB
+- Cohere reranks the merged result set to top 5 passages
+- Best for: "How do conformity assessment obligations differ between biometric and non-biometric high-risk AI systems?"
+
+### Generation & Evaluation
+
+- **LLMs**: Groq-hosted `llama-3.3-70b-versatile` (quality) or `llama-3.1-8b-instant` (speed, lower token usage)
+- The same model selected for generation is also used for evaluation, keeping token usage predictable
+- Relevance and faithfulness scores are computed per response and displayed below each answer
+
+### Deployment
+
+- **Platform**: Hugging Face Spaces (Docker SDK, port 7860)
+- **Build**: `run_pipeline.py` runs at image build time — ChromaDB is fully populated before the app starts, no cold-start ingest
+- **UI**: Streamlit in standalone mode, calling the service layer directly (no FastAPI overhead)
+- **API layer**: FastAPI routes remain available for programmatic access if needed
+
+---
+
+## Project Structure
+
+```
+├── main_ui.py                        # Streamlit chat UI (standalone mode)
+├── app.py                            # FastAPI entrypoint (optional API access)
+├── run_pipeline.py                   # Orchestrates preprocessing + ChromaDB ingestion
+├── Dockerfile                        # Builds image, runs pipeline, starts Streamlit on :7860
+├── requirements.txt                  # Pinned dependency stack
+│
+├── RAG/
+│   └── rag_chains.py                 # HybridRag, AdvanceRag, Evaluations, Prompts
+│
+├── API/
+│   ├── routes/appRoutes.py           # POST /complaince/bot/ask
+│   ├── controller/appController.py   # Request validation and response formatting
+│   └── service/appService.py         # Dispatches to HybridRag or AdvanceRag
+│
+├── config/
+│   ├── chroma_client.py              # Singleton embeddings, ChromaDB connection, retrievers
+│   └── groq_client.py                # Groq LLM wrapper
+│
+└── pipeline/
+    ├── preprocess_pdfs.py            # GDPR JSONL + EU AI Act CSV preprocessing logic
+    └── pdfs/                         # Source corpora (JSONL, CSV, PDFs via Git LFS)
+```
+
+---
+
+## Quickstart (Local)
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Set environment variables
+# GROQ_API_KEY=...
+# COHERE_API_KEY=...
+
+# 3. Build the vector store
+python run_pipeline.py
+
+# 4. Launch the UI
+streamlit run main_ui.py
+```
+
+---
+
+## Key Design Decisions
+
+**Article-prefixed chunks** — Article number and title are prepended to every chunk before embedding. This ensures both semantic and BM25 retrieval can find article-specific content even when the query only mentions an article number.
+
+**Singleton embedding model** — The `all-MiniLM-L6-v2` model is loaded once globally and reused across all retrieval calls, avoiding duplicate 80 MB loads in a single-process container.
+
+**Build-time vector store** — ChromaDB is populated during Docker image build so the app starts fully ready. There is no ingest step at runtime.
+
+**Standalone Streamlit mode** — The UI calls the async service layer directly, bypassing FastAPI. This reduces container memory usage and removes inter-process overhead.
+
+**Policy-aware metadata filtering** — Queries mentioning GDPR or EU AI Act are automatically routed to policy-filtered retrieval, reducing noise from cross-policy chunks.
+
+**Shared evaluation model** — Relevance and faithfulness scoring use the same model selected for generation, so switching to the smaller model reduces total token usage across all three LLM calls per query.
